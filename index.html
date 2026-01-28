@@ -2,37 +2,27 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Gartic Party Online - Spleef Update</title>
+    <title>Gartic Party - Fixed Sync</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body { margin: 0; background: #0f172a; color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        #setup { background: #1e293b; padding: 30px; border-radius: 20px; text-align: center; width: 450px; border: 1px solid #334155; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        .btn { color: white; border: none; padding: 15px 25px; border-radius: 12px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; font-size: 1.1em; transition: 0.2s; }
-        .btn-share { background: #6366f1; border-bottom: 4px solid #4338ca; }
-        .btn-share:active { transform: translateY(2px); border-bottom: 2px solid #4338ca; }
-        .btn-green { background: #22c55e; display: none; margin-top: 20px; border-bottom: 4px solid #15803d; }
-        canvas { background: #000; display: none; border: 4px solid #334155; border-radius: 8px; }
-        #ui-msg { position: absolute; top: 20px; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 30px; font-weight: bold; pointer-events: none; display: none; border: 1px solid #38bdf8; }
+        body { margin: 0; background: #0f172a; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #menu { background: #1e293b; padding: 30px; border-radius: 20px; text-align: center; width: 450px; border: 2px solid #334155; }
+        .btn { color: white; border: none; padding: 15px; border-radius: 10px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; font-size: 1.1em; }
+        .btn-share { background: #6366f1; }
+        .btn-green { background: #22c55e; display: none; }
+        canvas { background: #000; display: none; border: 4px solid #334155; }
+        #status { position: absolute; top: 10px; font-size: 0.8em; color: #94a3b8; }
     </style>
 </head>
 <body>
 
-    <div id="ui-msg">MODE : SPLEEF - NE TOMBE PAS !</div>
+    <div id="status">Connexion PeerJS...</div>
 
-    <div id="setup">
-        <h1 id="title" style="margin-top:0; color:#38bdf8;">MEGA PARTY 8P</h1>
-        
-        <div id="host-controls">
-            <p>Prêt à jouer ? Invite tes amis !</p>
-            <button class="btn btn-share" onclick="shareLink()">🔗 COPIER LE LIEN D'INVITATION</button>
-            <div id="peer-info" style="margin-top:20px; background:#0f172a; padding:10px; border-radius:10px; color:#94a3b8;">Attente de joueurs (1/8)...</div>
-            <button id="startBtn" class="btn btn-green" onclick="hostStart()">LANCER LA PARTIE</button>
-        </div>
-
-        <div id="join-controls" style="display:none;">
-            <p>Connexion au salon en cours...</p>
-            <div class="loader"></div>
-        </div>
+    <div id="menu">
+        <h1 style="color:#38bdf8;">PARTY FIX SYNC</h1>
+        <button class="btn btn-share" onclick="copyInviteLink()">🔗 COPIER LE LIEN</button>
+        <p id="player-count">Attente de joueurs (1/8)...</p>
+        <button id="startBtn" class="btn btn-green" onclick="hostStart()">LANCER LE JEU</button>
     </div>
 
     <canvas id="gameCanvas" width="1000" height="600"></canvas>
@@ -42,136 +32,158 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const peer = new Peer();
 
-let myId, mainConn, isHost = false, myIndex = 0, gameState = "LOBBY";
+let myId, conn, isHost = false, myIndex = 0;
 let connections = [];
 let players = Array.from({length: 8}, (_, i) => ({ 
-    id: i, x: 0, y: 0, active: false, alive: true,
+    id: i, x: 100 + i*50, y: 300, active: false, alive: true,
     color: ['#ff4757', '#2ed573', '#1e90ff', '#ffa502', '#ff6fcf', '#70a1ff', '#747d8c', '#eccc68'][i] 
 }));
-
-// --- LOGIQUE SPLEEF ---
-let spleefTiles = [];
-function initSpleef() {
-    spleefTiles = [];
-    for(let y=0; y<12; y++) {
-        for(let x=0; x<20; x++) {
-            spleefTiles.push({x: x*50, y: y*50, state: 0}); // 0: ok, 1: touché, 2: vide
-        }
-    }
-    players.forEach((p, i) => {
-        p.x = 100 + (i*100); p.y = 300; p.alive = p.active;
-    });
-}
+let tiles = new Array(240).fill(0); // 0: plein, 1: touche, 2: vide
 
 // --- RESEAU ---
-function shareLink() {
-    const url = new URL(window.location.href);
-    url.searchParams.set('room', myId);
-    navigator.clipboard.writeText(url.toString());
-    alert("Lien copié ! Envoie-le via Discord, WhatsApp ou Messenger.");
-}
-
 peer.on('open', (id) => {
     myId = id;
+    document.getElementById('status').innerText = "ID: " + id;
     const room = new URLSearchParams(window.location.search).get('room');
     if (room) {
         isHost = false;
-        document.getElementById('host-controls').style.display = 'none';
-        document.getElementById('join-controls').style.display = 'block';
-        mainConn = peer.connect(room);
-        setupDataListener(mainConn);
+        conn = peer.connect(room);
+        setupListener(conn);
     } else {
         isHost = true;
         players[0].active = true;
+        document.getElementById('startBtn').style.display = 'block';
     }
 });
 
-peer.on('connection', (conn) => {
-    connections.push(conn);
-    players[connections.length].active = true;
-    document.getElementById('startBtn').style.display = 'block';
-    document.getElementById('peer-info').innerText = `Joueurs connectés (${connections.length + 1}/8)`;
-    conn.on('open', () => {
-        conn.send({ type: 'ASSIGN_ID', index: connections.length });
-        setupDataListener(conn);
+function copyInviteLink() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', myId);
+    navigator.clipboard.writeText(url.toString());
+    alert("Lien copié !");
+}
+
+peer.on('connection', (c) => {
+    connections.push(c);
+    const newIdx = connections.length;
+    players[newIdx].active = true;
+    document.getElementById('player-count').innerText = `Joueurs connectés (${newIdx + 1}/8)`;
+    
+    c.on('open', () => {
+        c.send({ type: 'INIT', index: newIdx });
+        setupListener(c);
     });
 });
 
-function setupDataListener(conn) {
-    conn.on('data', (data) => {
-        if(data.type === 'ASSIGN_ID') myIndex = data.index;
-        if(data.type === 'START') startGame();
-        if(data.type === 'SYNC') {
-            players = data.players;
-            if(data.tiles) spleefTiles = data.tiles;
+function setupListener(c) {
+    c.on('data', (data) => {
+        if (data.type === 'INIT') myIndex = data.index;
+        if (data.type === 'START') startGame();
+        
+        if (isHost && data.type === 'INPUT') {
+            // L'hôte reçoit les mouvements des clients
+            players[data.index].x = data.x;
+            players[data.index].y = data.y;
+        }
+        
+        if (!isHost && data.type === 'STATE') {
+            // Le client reçoit l'état total de l'hôte
+            players = data.p;
+            tiles = data.t;
         }
     });
 }
 
-// --- BOUCLE DE JEU ---
-let keys = {};
-window.onkeydown = e => { 
-    keys[e.key.toLowerCase()] = true; 
-    if(e.key.toLowerCase() === 'n' && isHost) hostStart(); 
-};
-window.onkeyup = e => keys[e.key.toLowerCase()] = false;
-
+// --- JEU ---
 function hostStart() {
     connections.forEach(c => c.send({ type: 'START' }));
     startGame();
 }
 
 function startGame() {
-    document.getElementById('setup').style.display = 'none';
-    document.getElementById('ui-msg').style.display = 'block';
+    document.getElementById('menu').style.display = 'none';
     canvas.style.display = 'block';
-    initSpleef();
-    gameLoop();
+    if(isHost) {
+        tiles.fill(0);
+        players.forEach((p, i) => { if(p.active) p.alive = true; });
+    }
+    loop();
 }
 
-function gameLoop() {
-    let p = players[myIndex];
-    if(p.alive) {
-        if(keys['z'] || keys['arrowup']) p.y -= 5;
-        if(keys['s'] || keys['arrowdown']) p.y += 5;
-        if(keys['q'] || keys['arrowleft']) p.x -= 5;
-        if(keys['d'] || keys['arrowright']) p.x += 5;
+let keys = {};
+window.onkeydown = e => keys[e.key.toLowerCase()] = true;
+window.onkeyup = e => keys[e.key.toLowerCase()] = false;
 
-        // Detection Spleef
-        spleefTiles.forEach(t => {
-            if(t.state === 0 && p.x > t.x && p.x < t.x+50 && p.y > t.y && p.y < t.y+50) {
-                t.state = 1;
-                setTimeout(() => { t.state = 2; }, 500);
-            }
-            if(t.state === 2 && p.x > t.x && p.x < t.x+50 && p.y > t.y && p.y < t.y+50) {
-                p.alive = false;
-            }
-        });
+function loop() {
+    let me = players[myIndex];
+    
+    if (me.alive) {
+        if (keys['z'] || keys['arrowup']) me.y -= 5;
+        if (keys['s'] || keys['arrowdown']) me.y += 5;
+        if (keys['q'] || keys['arrowleft']) me.x -= 5;
+        if (keys['d'] || keys['arrowright']) me.x += 5;
+
+        // Limites
+        me.x = Math.max(10, Math.min(990, me.x));
+        me.y = Math.max(10, Math.min(590, me.y));
+
+        if (isHost) {
+            checkSpleef(me);
+        } else {
+            // Envoyer sa position à l'hôte
+            conn.send({ type: 'INPUT', index: myIndex, x: me.x, y: me.y });
+        }
     }
 
-    // Sync
-    const syncData = { type: 'SYNC', players: players, tiles: isHost ? spleefTiles : null };
-    if(isHost) connections.forEach(c => c.send(syncData));
-    else if(mainConn) mainConn.send(syncData);
+    if (isHost) {
+        // L'hôte gère la physique de TOUS les joueurs connectés
+        connections.forEach((c, i) => {
+            let p = players[i+1];
+            if(p.active && p.alive) checkSpleef(p);
+        });
+        
+        // L'hôte renvoie l'état à tout le monde
+        const state = { type: 'STATE', p: players, t: tiles };
+        connections.forEach(c => c.send(state));
+    }
 
-    // Dessin
+    draw();
+    requestAnimationFrame(loop);
+}
+
+function checkSpleef(p) {
+    let tx = Math.floor(p.x / 50);
+    let ty = Math.floor(p.y / 50);
+    let idx = ty * 20 + tx;
+    
+    if (tiles[idx] === 0) {
+        tiles[idx] = 1;
+        setTimeout(() => { tiles[idx] = 2; }, 500);
+    }
+    if (tiles[idx] === 2) p.alive = false;
+}
+
+function draw() {
     ctx.clearRect(0, 0, 1000, 600);
-    spleefTiles.forEach(t => {
-        if(t.state === 0) ctx.fillStyle = "#334155";
-        else if(t.state === 1) ctx.fillStyle = "#f59e0b";
-        else ctx.fillStyle = "#000";
-        ctx.fillRect(t.x, t.y, 48, 48);
-    });
+    
+    // Dessin du sol
+    for(let i=0; i<tiles.length; i++) {
+        if (tiles[i] === 2) continue;
+        ctx.fillStyle = tiles[i] === 1 ? "#f59e0b" : "#334155";
+        ctx.fillRect((i % 20) * 50, Math.floor(i / 20) * 50, 48, 48);
+    }
 
-    players.forEach(pl => {
-        if(pl.active && pl.alive) {
-            ctx.fillStyle = pl.color;
-            ctx.beginPath(); ctx.arc(pl.x, pl.y, 15, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = "white"; ctx.stroke();
+    // Dessin des joueurs
+    players.forEach(p => {
+        if (p.active && p.alive) {
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); 
+            ctx.arc(p.x, p.y, 15, 0, Math.PI * 2); 
+            ctx.fill();
+            ctx.strokeStyle = "white";
+            ctx.stroke();
         }
     });
-
-    requestAnimationFrame(gameLoop);
 }
 </script>
 </body>
