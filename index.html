@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gartic Party - Stable Edition</title>
+    <title>Gartic Party - Fix Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --panel: #2d3436; --accent: #fdcb6e; --bg: #6c5ce7; }
@@ -11,9 +11,11 @@
         #lobby { background: white; color: #2d3436; padding: 20px; border-radius: 25px; width: 90%; max-width: 500px; text-align: center; box-shadow: 0 10px 0 rgba(0,0,0,0.2); }
         .avatar-picker { display: flex; justify-content: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
         .av-btn { font-size: 25px; cursor: pointer; padding: 8px; border: 2px solid #dfe6e9; border-radius: 10px; background: none; }
-        .av-btn.selected { border-color: var(--bg); background: #efecff; }
+        .av-btn.selected { border-color: var(--bg); background: #efecff; transform: scale(1.1); }
         #game-area { display: none; width: 100vw; height: 100vh; position: relative; background: #1a1a2e; }
         canvas { background: #242442; border-left: 5px solid #3d3d5e; }
+        .glitch { animation: glitch 0.2s infinite; filter: contrast(150%) brightness(120%); }
+        @keyframes glitch { 0% { transform: translate(0); } 20% { transform: translate(-3px, 3px); } 80% { transform: translate(3px, -3px); } }
         #sidebar { width: 180px; background: #2d3436; height: 100%; padding: 10px; box-sizing: border-box; }
         .player-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; padding: 5px; border-radius: 8px; background: rgba(255,255,255,0.05); font-size: 13px; }
         .btn { background: #ff7675; border: none; padding: 12px 20px; color: white; border-radius: 50px; font-size: 16px; cursor: pointer; font-weight: bold; border-bottom: 5px solid #d63031; }
@@ -30,7 +32,7 @@
         <div id="setup-player">
             <input type="text" id="pseudo-input" placeholder="Pseudo..." maxlength="10" style="padding:10px; width:70%; margin-bottom:10px;">
             <div class="avatar-picker" id="picker"></div>
-            <div style="font-size:12px; margin-bottom:10px;">Touche : <input type="text" id="key-input" value=" " style="width:30px; text-align:center;"> (Espace)</div>
+            <div style="font-size:12px; margin-bottom:10px;">Touche : <input type="text" id="key-input" value=" " style="width:30px; text-align:center;"></div>
             <button class="btn" onclick="confirmProfile()">VALIDER</button>
         </div>
         <div id="host-only" style="display:none; margin-top:15px;">
@@ -63,7 +65,7 @@
     const AVATARS = ['😎','🤖','👻','👽','🦄','🐸','🎃','🦖','🥷','🍕'];
     
     let peer = null, connections = [], hostConn = null, isHost = false;
-    let players = [], currentStep = 0, currentMiniGame = null, myId = null;
+    let players = [], currentStep = 0, currentMiniGame = { name: "", speed: 0, bug: false }, myId = null;
     let selectedAvatar = AVATARS[0], myPseudo = "", myKey = " ";
     let gameActive = false;
 
@@ -143,7 +145,7 @@
     }
 
     function spawnSecret() {
-        if(isHost || !gameActive || Math.random() > 0.3) return;
+        if(isHost || !gameActive || Math.random() > 0.4) return;
         const secrets = [{ i: '🏆', p: 10 }, { i: '💎', p: 5 }, { i: '🍌', p: -5 }];
         const s = secrets[Math.floor(Math.random() * secrets.length)];
         const el = document.createElement('div');
@@ -151,7 +153,7 @@
         el.style.left = Math.random()*70 + 15 + '%'; el.style.top = Math.random()*70 + 15 + '%';
         el.onclick = (e) => {
             e.stopPropagation();
-            if(window.navigator.vibrate) window.navigator.vibrate(50); // Vibration mobile
+            if(window.navigator.vibrate) window.navigator.vibrate(50);
             hostConn.send({ type: 'SECRET', points: s.p });
             el.remove();
         };
@@ -179,12 +181,20 @@
         if(!isHost) return;
         currentStep++;
         if(currentStep > 50) {
-            currentMiniGame = { name: "FIN DE PARTIE", speed: 0 };
+            currentMiniGame = { name: "FIN DE PARTIE", speed: 0, bug: false };
             sync(); return;
         }
-        const gameA = "DÉFI #" + (currentStep * 2 - 1);
-        const gameB = "DÉFI #" + (currentStep * 2);
-        currentMiniGame = { name: Math.random() > 0.5 ? gameA : gameB, speed: 1.5 + (currentStep * 0.07) };
+        
+        // RE-CALCUL DU BUG : 15% de chance par mini-jeu
+        const hasBug = Math.random() < 0.15;
+        const gameName = "DÉFI #" + (currentStep * 2 - (Math.random() > 0.5 ? 0 : 1));
+        
+        currentMiniGame = { 
+            name: gameName + (hasBug ? " ⚠ BUG ⚠" : ""), 
+            speed: 1.5 + (currentStep * 0.06),
+            bug: hasBug 
+        };
+        
         players.forEach(p => { p.y = 300; p.alive = true; });
         sync();
     }
@@ -193,7 +203,7 @@
         if(isHost && gameActive && currentStep <= 50) {
             players.forEach(p => { if(p.active && p.alive) { 
                 p.y += currentMiniGame.speed; 
-                if(p.y > canvas.height) { p.alive = false; }
+                if(p.y > canvas.height) p.alive = false;
             }});
             sync();
         }
@@ -205,6 +215,14 @@
         ctx.clearRect(0,0,canvas.width,canvas.height);
         document.getElementById('step-counter').innerText = `Étape ${currentStep}/50`;
         document.getElementById('game-msg').innerText = currentMiniGame ? currentMiniGame.name : "";
+        
+        // GESTION DU BUG VISUEL : On l'active ou le désactive selon le mini-jeu actuel
+        if(currentMiniGame && currentMiniGame.bug) {
+            canvas.classList.add('glitch');
+        } else {
+            canvas.classList.remove('glitch');
+        }
+
         document.getElementById('score-list').innerHTML = players.map(p => `
             <div class="player-row" style="border-left: 3px solid ${p.color}">
                 <span>${p.avatar}</span> <span style="flex-grow:1; overflow:hidden;">${p.pseudo}</span> <b>${p.score}</b>
