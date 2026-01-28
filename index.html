@@ -3,208 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gartic Party - Fix Edition</title>
+    <title>Gartic Party - 100 Défis Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --panel: #2d3436; --accent: #fdcb6e; --bg: #6c5ce7; }
-        body { background: var(--bg); color: white; font-family: 'Comic Sans MS', cursive; margin: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; touch-action: manipulation; }
-        #lobby { background: white; color: #2d3436; padding: 20px; border-radius: 25px; width: 90%; max-width: 500px; text-align: center; box-shadow: 0 10px 0 rgba(0,0,0,0.2); }
-        .avatar-picker { display: flex; justify-content: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
-        .av-btn { font-size: 25px; cursor: pointer; padding: 8px; border: 2px solid #dfe6e9; border-radius: 10px; background: none; }
-        .av-btn.selected { border-color: var(--bg); background: #efecff; transform: scale(1.1); }
-        #game-area { display: none; width: 100vw; height: 100vh; position: relative; background: #1a1a2e; }
-        canvas { background: #242442; border-left: 5px solid #3d3d5e; }
-        .glitch { animation: glitch 0.2s infinite; filter: contrast(150%) brightness(120%); }
-        @keyframes glitch { 0% { transform: translate(0); } 20% { transform: translate(-3px, 3px); } 80% { transform: translate(3px, -3px); } }
-        #sidebar { width: 180px; background: #2d3436; height: 100%; padding: 10px; box-sizing: border-box; }
-        .player-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; padding: 5px; border-radius: 8px; background: rgba(255,255,255,0.05); font-size: 13px; }
-        .btn { background: #ff7675; border: none; padding: 12px 20px; color: white; border-radius: 50px; font-size: 16px; cursor: pointer; font-weight: bold; border-bottom: 5px solid #d63031; }
-        .secret-item { position: fixed; font-size: 50px; z-index: 2000; cursor: pointer; user-select: none; }
-        #mobile-controller { display: none; position: fixed; inset: 0; z-index: 1500; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; font-family: 'Arial Black', sans-serif; }
+        
+        #lobby { position: absolute; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 5000; }
+        #lobby-card { background: white; color: #2d3436; padding: 30px; border-radius: 20px; text-align: center; width: 90%; max-width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        
+        #game-area { display: none; width: 100vw; height: 100vh; flex-direction: row; }
+        canvas { flex-grow: 1; background: #1a1a2e; display: block; }
+        
+        #sidebar { width: 220px; background: var(--panel); display: flex; flex-direction: column; padding: 15px; border-right: 3px solid #3d3d5e; box-shadow: 5px 0 15px rgba(0,0,0,0.5); z-index: 20; }
+        .player-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 12px; font-size: 14px; transition: 0.3s; }
+        
+        .btn { background: #ff7675; border: none; padding: 15px; color: white; border-radius: 12px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #d63031; margin-top: 10px; text-transform: uppercase; }
+        #timer { font-size: 40px; color: var(--accent); font-weight: bold; text-align: center; margin-bottom: 10px; text-shadow: 2px 2px 0px #000; }
+        
+        /* Effet de stress fin de chrono */
+        .low-time { animation: flash-red 0.5s infinite; }
+        @keyframes flash-red { 0%, 100% { background: #1a1a2e; } 50% { background: #4b1212; } }
+        
+        .secret-item { position: fixed; font-size: 55px; z-index: 9999; cursor: pointer; user-select: none; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
+        #mobile-ctrl { position: fixed; inset: 0; z-index: 1000; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="mobile-controller" onclick="sendJump()"></div>
+    <div id="mobile-ctrl" onclick="sendJump()"></div>
 
     <div id="lobby">
-        <h1 style="font-size: 22px; color: var(--bg);">GARTIC PARTY <span id="pin-display">...</span></h1>
-        <div id="setup-player">
-            <input type="text" id="pseudo-input" placeholder="Pseudo..." maxlength="10" style="padding:10px; width:70%; margin-bottom:10px;">
-            <div class="avatar-picker" id="picker"></div>
-            <div style="font-size:12px; margin-bottom:10px;">Touche : <input type="text" id="key-input" value=" " style="width:30px; text-align:center;"></div>
-            <button class="btn" onclick="confirmProfile()">VALIDER</button>
-        </div>
-        <div id="host-only" style="display:none; margin-top:15px;">
-            <input type="text" id="input-pin" placeholder="CODE PIN" style="padding:10px; width:80px;">
-            <button class="btn" style="background:#00d2ff; padding:10px;" onclick="joinGame()">REJOINDRE</button>
-            <div id="player-grid" style="display:flex; flex-wrap:wrap; gap:5px; justify-content:center; margin:15px 0;"></div>
-            <button id="start-btn" class="btn" style="background:#55efc4; display:none;">LANCER</button>
+        <div id="lobby-card">
+            <h1 id="pin-display" style="font-size: 28px; color: var(--bg);">GARTIC PARTY</h1>
+            <div id="setup">
+                <input type="text" id="pseudo" placeholder="Ton Pseudo..." maxlength="10" style="width:85%; padding:12px; margin:15px 0; border-radius:10px; border:2px solid #ddd; font-size:16px;">
+                <div id="avatars" style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:20px;"></div>
+                <button class="btn" onclick="confirmProfile()" style="width:100%">C'EST PARTI !</button>
+            </div>
+            <div id="wait" style="display:none;">
+                <p>Entre le code ou attends l'hôte :</p>
+                <input type="text" id="join-pin" placeholder="CODE PIN" style="width:120px; padding:12px; text-align:center; font-size:18px; border-radius:10px;">
+                <button class="btn" onclick="joinGame()">REJOINDRE</button>
+                <div id="player-list" style="margin:25px 0; display:flex; flex-wrap:wrap; gap:12px; justify-content:center;"></div>
+                <button id="start-btn" class="btn" style="background:#55efc4; border-color:#00b894; display:none; width:100%">LANCER (100 ÉTAPES)</button>
+            </div>
         </div>
     </div>
 
     <div id="game-area">
-        <div style="display:flex; height:100%;">
-            <div id="sidebar">
-                <h3 id="step-counter" style="color:var(--accent); font-size:16px;">Étape 0/50</h3>
-                <div id="score-list"></div>
-                <div id="host-tools" style="margin-top:20px; display:none;">
-                    <button class="btn" style="font-size:11px; width:100%;" onclick="nextStep()">JEU SUIVANT (N)</button>
-                </div>
+        <div id="sidebar">
+            <div id="timer">60s</div>
+            <h3 id="step-counter" style="color:var(--accent); text-align:center; margin:0 0 15px 0;">Étape 0/100</h3>
+            <div id="score-list" style="flex-grow:1; overflow-y:auto;"></div>
+            <div id="host-ui" style="display:none;">
+                <button class="btn" onclick="nextStep()" style="width:100%; background:#fdcb6e; border-color:#e1b12c; color:#2d3436;">SUIVANT (N)</button>
             </div>
-            <div style="flex-grow:1; position:relative;">
-                <div id="game-msg" style="position:absolute; top:10px; width:100%; text-align:center; font-size:20px;"></div>
-                <canvas id="gameCanvas"></canvas>
-            </div>
+        </div>
+        <div style="flex-grow:1; position:relative; overflow:hidden;">
+            <div id="game-title" style="position:absolute; top:30px; width:100%; text-align:center; font-size:40px; font-weight:bold; color:white; text-shadow:4px 4px 0px #000; z-index:10; pointer-events:none;"></div>
+            <canvas id="canvas"></canvas>
         </div>
     </div>
 
 <script>
-    const canvas = document.getElementById('gameCanvas');
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const AVATARS = ['😎','🤖','👻','👽','🦄','🐸','🎃','🦖','🥷','🍕'];
+    const AVATARS = ['😎','🤖','👻','👽','🦄','🐸','🎃','🦖','🥷','🍕','🐱','🦁','🍩','🎮'];
     
     let peer = null, connections = [], hostConn = null, isHost = false;
-    let players = [], currentStep = 0, currentMiniGame = { name: "", speed: 0, bug: false }, myId = null;
-    let selectedAvatar = AVATARS[0], myPseudo = "", myKey = " ";
-    let gameActive = false;
+    let players = [], currentStep = 0, currentGame = { name: "", speed: 0 }, myId = null;
+    let myAvatar = AVATARS[0], myPseudo = "", gameTimer = 0;
 
-    const picker = document.getElementById('picker');
-    AVATARS.forEach(av => {
+    // Types de jeux pour générer les 100 niveaux
+    const GAME_TYPES = ["VITESSE", "RÉFLEXE", "PRÉCISION", "SURVIE", "DÉFI", "ULTRA", "CHAOS", "ZEN"];
+
+    AVATARS.forEach(a => {
         const b = document.createElement('button');
-        b.className = 'av-btn'; b.innerText = av;
-        b.onclick = () => { document.querySelectorAll('.av-btn').forEach(btn => btn.classList.remove('selected')); b.classList.add('selected'); selectedAvatar = av; };
-        picker.appendChild(b);
+        b.innerText = a; b.style.padding = "12px"; b.style.fontSize = "22px"; b.style.cursor = "pointer"; b.style.background = "none"; b.style.border = "2px solid transparent";
+        b.onclick = () => { myAvatar = a; document.querySelectorAll('#avatars button').forEach(x => x.style.borderColor = "transparent"); b.style.borderColor = "#6c5ce7"; b.style.borderRadius = "10px"; };
+        document.getElementById('avatars').appendChild(b);
     });
 
     function confirmProfile() {
-        myPseudo = document.getElementById('pseudo-input').value || "Joueur";
-        myKey = document.getElementById('key-input').value || " ";
-        document.getElementById('setup-player').style.display = "none";
-        document.getElementById('host-only').style.display = "block";
-        if(isHost) addLocalPlayer();
+        myPseudo = document.getElementById('pseudo').value || "Joueur";
+        document.getElementById('setup').style.display = "none";
+        document.getElementById('wait').style.display = "block";
+        if(isHost) addHostPlayer();
     }
 
     function initHost() {
         isHost = true;
-        const pin = Math.floor(1000 + Math.random() * 9000).toString();
-        document.getElementById('pin-display').innerText = "CODE: " + pin;
+        const pin = Math.floor(100000 + Math.random() * 899999).toString();
+        document.getElementById('pin-display').innerText = "CODE : " + pin;
         peer = new Peer('GP-' + pin);
         peer.on('connection', conn => {
             connections.push(conn);
             conn.on('data', data => {
                 if(data.type === 'JOIN') {
                     if(!players.find(p => p.id === conn.peer)) {
-                        players.push({ id: conn.peer, pseudo: data.pseudo, avatar: data.avatar, score: 0, x: 400, y: 300, color: `hsl(${Math.random()*360}, 70%, 60%)`, active: true, alive: true });
-                        updateLobbyUI(); sync();
+                        players.push({ id: conn.peer, pseudo: data.pseudo, avatar: data.avatar, score: 0, y: 300, color: `hsl(${Math.random()*360}, 75%, 65%)`, alive: true });
+                        sync(); updateLobbyUI();
                     }
                 }
-                if(data.type === 'INPUT' && gameActive) {
-                    let p = players.find(pl => pl.id === conn.peer);
-                    if(p && p.alive) p.y -= 35;
+                if(data.type === 'JUMP') {
+                    let p = players.find(x => x.id === conn.peer);
+                    if(p && p.alive && gameTimer > 0) p.y -= 45;
                 }
                 if(data.type === 'SECRET') {
-                    let p = players.find(pl => pl.id === conn.peer);
-                    if(p) { p.score += data.points; sync(); }
+                    let p = players.find(x => x.id === conn.peer);
+                    if(p) { p.score += data.pts; sync(); }
                 }
             });
         });
         document.getElementById('start-btn').onclick = () => { broadcast({type:'START'}); startGame(); };
     }
 
-    function addLocalPlayer() {
-        myId = "HOST_PLAYER";
-        players.push({ id: myId, pseudo: myPseudo, avatar: selectedAvatar, score: 0, x: 400, y: 300, color: '#00d2ff', active: true, alive: true });
+    function addHostPlayer() {
+        myId = "HOST";
+        players.push({ id: myId, pseudo: myPseudo, avatar: myAvatar, score: 0, y: 300, color: '#00d2ff', alive: true });
         updateLobbyUI();
     }
 
     function joinGame() {
-        const pin = document.getElementById('input-pin').value;
+        const pin = document.getElementById('join-pin').value;
         peer = new Peer();
-        peer.on('open', (id) => {
+        peer.on('open', id => {
             myId = id; hostConn = peer.connect('GP-' + pin);
             hostConn.on('open', () => {
-                hostConn.send({ type: 'JOIN', pseudo: myPseudo, avatar: selectedAvatar });
-                document.getElementById('lobby').innerHTML = "<h1>CONNECTÉ !</h1><p>Prépare-toi...</p>";
+                hostConn.send({ type: 'JOIN', pseudo: myPseudo, avatar: myAvatar });
+                document.getElementById('lobby-card').innerHTML = "<h2>PRÊT !<br>Regarde l'écran principal</h2>";
             });
             hostConn.on('data', d => {
-                if(d.type === 'SYNC') { players = d.players; currentMiniGame = d.game; currentStep = d.step; }
+                if(d.type === 'SYNC') { players = d.players; currentGame = d.game; gameTimer = d.timer; currentStep = d.step; }
                 if(d.type === 'START') startGame();
             });
         });
     }
 
     function sendJump() {
-        if(!gameActive) return;
-        if(isHost) {
-            let p = players.find(pl => pl.id === myId);
-            if(p && p.alive) p.y -= 35;
-        } else if(hostConn) {
-            hostConn.send({ type: 'INPUT' });
-        }
+        if(gameTimer <= 0) return;
+        if(isHost) { let p = players.find(x => x.id === myId); if(p && p.alive) p.y -= 45; }
+        else if(hostConn) hostConn.send({ type: 'JUMP' });
     }
 
     function spawnSecret() {
-        if(isHost || !gameActive || Math.random() > 0.4) return;
-        const secrets = [{ i: '🏆', p: 10 }, { i: '💎', p: 5 }, { i: '🍌', p: -5 }];
-        const s = secrets[Math.floor(Math.random() * secrets.length)];
+        if(isHost || gameTimer <= 0 || Math.random() > 0.45) return;
+        const s = [{ i: '🏆', p: 10 }, { i: '💎', p: 5 }, { i: '🍌', p: -5 }][Math.floor(Math.random()*3)];
         const el = document.createElement('div');
         el.className = 'secret-item'; el.innerText = s.i;
-        el.style.left = Math.random()*70 + 15 + '%'; el.style.top = Math.random()*70 + 15 + '%';
-        el.onclick = (e) => {
-            e.stopPropagation();
-            if(window.navigator.vibrate) window.navigator.vibrate(50);
-            hostConn.send({ type: 'SECRET', points: s.p });
-            el.remove();
-        };
+        el.style.left = Math.random()*80+10+'%'; el.style.top = Math.random()*80+10+'%';
+        el.onclick = (e) => { e.stopPropagation(); if(window.navigator.vibrate) window.navigator.vibrate(40); hostConn.send({type:'SECRET', pts: s.p}); el.remove(); };
         document.body.appendChild(el);
-        setTimeout(() => el.remove(), 3000);
+        setTimeout(() => { if(el.parentNode) el.remove(); }, 3500);
     }
 
     function startGame() {
-        gameActive = true;
         document.getElementById('lobby').style.display = 'none';
-        document.getElementById('game-area').style.display = 'block';
-        document.getElementById('mobile-controller').style.display = 'block';
+        document.getElementById('game-area').style.display = 'flex';
+        document.getElementById('mobile-ctrl').style.display = 'block';
         resize();
-        if(isHost) { document.getElementById('host-tools').style.display = 'block'; nextStep(); }
-        else { setInterval(spawnSecret, 8000); }
-        
-        window.addEventListener('keydown', e => {
+        if(isHost) {
+            document.getElementById('host-ui').style.display = 'block';
+            nextStep();
+            setInterval(() => { if(gameTimer > 0) { gameTimer--; sync(); } }, 1000);
+        } else {
+            setInterval(spawnSecret, 6500);
+        }
+        window.addEventListener('keydown', e => { 
             if(isHost && e.key.toLowerCase() === 'n') nextStep();
-            if(e.key === myKey) sendJump();
+            if(e.key === ' ') sendJump(); 
         });
-        loop();
+        requestAnimationFrame(loop);
     }
 
     function nextStep() {
         if(!isHost) return;
+        document.querySelectorAll('.secret-item').forEach(s => s.remove());
         currentStep++;
-        if(currentStep > 50) {
-            currentMiniGame = { name: "FIN DE PARTIE", speed: 0, bug: false };
-            sync(); return;
-        }
+        if(currentStep > 100) { currentGame = {name: "VICTOIRE FINALE !", speed: 0}; sync(); return; }
         
-        // RE-CALCUL DU BUG : 15% de chance par mini-jeu
-        const hasBug = Math.random() < 0.15;
-        const gameName = "DÉFI #" + (currentStep * 2 - (Math.random() > 0.5 ? 0 : 1));
-        
-        currentMiniGame = { 
-            name: gameName + (hasBug ? " ⚠ BUG ⚠" : ""), 
-            speed: 1.5 + (currentStep * 0.06),
-            bug: hasBug 
+        gameTimer = 60;
+        const typeIdx = Math.floor(Math.random() * GAME_TYPES.length);
+        currentGame = { 
+            name: `${GAME_TYPES[typeIdx]} #${currentStep}`, 
+            speed: 1.6 + (currentStep * 0.045) 
         };
-        
         players.forEach(p => { p.y = 300; p.alive = true; });
         sync();
     }
 
     function loop() {
-        if(isHost && gameActive && currentStep <= 50) {
-            players.forEach(p => { if(p.active && p.alive) { 
-                p.y += currentMiniGame.speed; 
-                if(p.y > canvas.height) p.alive = false;
-            }});
+        if(isHost && gameTimer > 0) {
+            players.forEach(p => { if(p.alive) { p.y += currentGame.speed; if(p.y > canvas.height) p.alive = false; } });
             sync();
         }
         draw();
@@ -213,37 +204,42 @@
 
     function draw() {
         ctx.clearRect(0,0,canvas.width,canvas.height);
-        document.getElementById('step-counter').innerText = `Étape ${currentStep}/50`;
-        document.getElementById('game-msg').innerText = currentMiniGame ? currentMiniGame.name : "";
+        const timerEl = document.getElementById('timer');
+        timerEl.innerText = gameTimer + "s";
         
-        // GESTION DU BUG VISUEL : On l'active ou le désactive selon le mini-jeu actuel
-        if(currentMiniGame && currentMiniGame.bug) {
-            canvas.classList.add('glitch');
+        // Effet visuel fin de temps
+        if(gameTimer <= 10 && gameTimer > 0) {
+            timerEl.classList.add('low-time');
+            canvas.style.filter = "sepia(0.5) contrast(1.2)";
         } else {
-            canvas.classList.remove('glitch');
+            timerEl.classList.remove('low-time');
+            canvas.style.filter = "none";
         }
 
+        document.getElementById('step-counter').innerText = `Étape ${currentStep}/100`;
+        document.getElementById('game-title').innerText = currentGame.name;
         document.getElementById('score-list').innerHTML = players.map(p => `
-            <div class="player-row" style="border-left: 3px solid ${p.color}">
-                <span>${p.avatar}</span> <span style="flex-grow:1; overflow:hidden;">${p.pseudo}</span> <b>${p.score}</b>
+            <div class="player-row" style="border-left:5px solid ${p.color}; opacity: ${p.alive ? 1 : 0.4}">
+                <span style="font-size:20px;">${p.avatar}</span> <span style="flex-grow:1; font-weight:bold;">${p.pseudo}</span> <b>${p.score}</b>
             </div>
         `).join('');
 
-        players.filter(p => p.active && p.alive).forEach(p => {
-            ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, 20, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "white"; ctx.font = "18px Arial"; ctx.fillText(p.avatar, p.x-12, p.y+7);
+        players.forEach((p, i) => {
+            if(p.alive) {
+                // Espacement dynamique des joueurs sur le canvas
+                const posX = 100 + (i * 80);
+                ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(posX, p.y, 25, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "white"; ctx.font = "22px Arial"; ctx.fillText(p.avatar, posX-15, p.y+8);
+            }
         });
     }
 
-    function resize() { 
-        canvas.width = window.innerWidth - (window.innerWidth > 600 ? 180 : 100); 
-        canvas.height = window.innerHeight; 
-    }
-    function sync() { if(isHost) broadcast({ type:'SYNC', players, game: currentMiniGame, step: currentStep }); }
+    function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
+    function sync() { if(isHost) broadcast({ type:'SYNC', players, game: currentGame, timer: gameTimer, step: currentStep }); }
     function broadcast(d) { connections.forEach(c => c.send(d)); }
     function updateLobbyUI() {
-        document.getElementById('player-grid').innerHTML = players.map(p => `<div style="background:#efecff; padding:8px; border-radius:10px; font-size:11px;">${p.avatar}<br>${p.pseudo}</div>`).join('');
-        if(isHost && players.length >= 1) document.getElementById('start-btn').style.display = "inline-block";
+        document.getElementById('player-list').innerHTML = players.map(p => `<div style="padding:15px; background:#f1f2f6; border-radius:15px; text-align:center; min-width:80px; box-shadow:0 4px 0 #ddd;">${p.avatar}<br><b>${p.pseudo}</b></div>`).join('');
+        if(isHost && players.length >= 1) document.getElementById('start-btn').style.display = "block";
     }
 
     if(!window.location.hash.includes('join')) initHost();
