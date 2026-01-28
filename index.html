@@ -2,248 +2,183 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gartic Party - 100 Défis Edition</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <title>Ultimate Party - 8P Full Controls</title>
     <style>
-        :root { --panel: #2d3436; --accent: #fdcb6e; --bg: #6c5ce7; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; font-family: 'Arial Black', sans-serif; }
-        
-        #lobby { position: absolute; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 5000; }
-        #lobby-card { background: white; color: #2d3436; padding: 30px; border-radius: 20px; text-align: center; width: 90%; max-width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-        
-        #game-area { display: none; width: 100vw; height: 100vh; flex-direction: row; }
-        canvas { flex-grow: 1; background: #1a1a2e; display: block; }
-        
-        #sidebar { width: 220px; background: var(--panel); display: flex; flex-direction: column; padding: 15px; border-right: 3px solid #3d3d5e; box-shadow: 5px 0 15px rgba(0,0,0,0.5); z-index: 20; }
-        .player-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 12px; font-size: 14px; transition: 0.3s; }
-        
-        .btn { background: #ff7675; border: none; padding: 15px; color: white; border-radius: 12px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #d63031; margin-top: 10px; text-transform: uppercase; }
-        #timer { font-size: 40px; color: var(--accent); font-weight: bold; text-align: center; margin-bottom: 10px; text-shadow: 2px 2px 0px #000; }
-        
-        /* Effet de stress fin de chrono */
-        .low-time { animation: flash-red 0.5s infinite; }
-        @keyframes flash-red { 0%, 100% { background: #1a1a2e; } 50% { background: #4b1212; } }
-        
-        .secret-item { position: fixed; font-size: 55px; z-index: 9999; cursor: pointer; user-select: none; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
-        #mobile-ctrl { position: fixed; inset: 0; z-index: 1000; display: none; }
+        body { margin: 0; background: #121212; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #lobby { background: #1e1e26; padding: 30px; border-radius: 15px; text-align: center; width: 900px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }
+        .p-card { background: #2a2a35; padding: 15px; border-radius: 10px; border: 2px solid #333; transition: 0.3s; }
+        .p-card.active { border-color: #00d2ff; background: #1e3a45; }
+        canvas { background: #000; border: 4px solid #333; display: none; cursor: crosshair; }
+        .hud { position: absolute; top: 10px; left: 10px; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <div id="mobile-ctrl" onclick="sendJump()"></div>
-
     <div id="lobby">
-        <div id="lobby-card">
-            <h1 id="pin-display" style="font-size: 28px; color: var(--bg);">GARTIC PARTY</h1>
-            <div id="setup">
-                <input type="text" id="pseudo" placeholder="Ton Pseudo..." maxlength="10" style="width:85%; padding:12px; margin:15px 0; border-radius:10px; border:2px solid #ddd; font-size:16px;">
-                <div id="avatars" style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:20px;"></div>
-                <button class="btn" onclick="confirmProfile()" style="width:100%">C'EST PARTI !</button>
-            </div>
-            <div id="wait" style="display:none;">
-                <p>Entre le code ou attends l'hôte :</p>
-                <input type="text" id="join-pin" placeholder="CODE PIN" style="width:120px; padding:12px; text-align:center; font-size:18px; border-radius:10px;">
-                <button class="btn" onclick="joinGame()">REJOINDRE</button>
-                <div id="player-list" style="margin:25px 0; display:flex; flex-wrap:wrap; gap:12px; justify-content:center;"></div>
-                <button id="start-btn" class="btn" style="background:#55efc4; border-color:#00b894; display:none; width:100%">LANCER (100 ÉTAPES)</button>
-            </div>
-        </div>
+        <h1>LOBBY GARTIC STYLE</h1>
+        <p>Utilisez vos touches (ZSQD, Flèches...) pour rejoindre !</p>
+        <div class="grid" id="playerGrid"></div>
+        <button id="startBtn" style="padding:15px 50px; font-size:20px; cursor:pointer; background:#2ed573; border:none; border-radius:30px; color:white; font-weight:bold;">LANCER</button>
     </div>
 
-    <div id="game-area">
-        <div id="sidebar">
-            <div id="timer">60s</div>
-            <h3 id="step-counter" style="color:var(--accent); text-align:center; margin:0 0 15px 0;">Étape 0/100</h3>
-            <div id="score-list" style="flex-grow:1; overflow-y:auto;"></div>
-            <div id="host-ui" style="display:none;">
-                <button class="btn" onclick="nextStep()" style="width:100%; background:#fdcb6e; border-color:#e1b12c; color:#2d3436;">SUIVANT (N)</button>
-            </div>
-        </div>
-        <div style="flex-grow:1; position:relative; overflow:hidden;">
-            <div id="game-title" style="position:absolute; top:30px; width:100%; text-align:center; font-size:40px; font-weight:bold; color:white; text-shadow:4px 4px 0px #000; z-index:10; pointer-events:none;"></div>
-            <canvas id="canvas"></canvas>
-        </div>
-    </div>
+    <canvas id="gameCanvas" width="1000" height="600"></canvas>
 
 <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const AVATARS = ['😎','🤖','👻','👽','🦄','🐸','🎃','🦖','🥷','🍕','🐱','🦁','🍩','🎮'];
-    
-    let peer = null, connections = [], hostConn = null, isHost = false;
-    let players = [], currentStep = 0, currentGame = { name: "", speed: 0 }, myId = null;
-    let myAvatar = AVATARS[0], myPseudo = "", gameTimer = 0;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-    // Types de jeux pour générer les 100 niveaux
-    const GAME_TYPES = ["VITESSE", "RÉFLEXE", "PRÉCISION", "SURVIE", "DÉFI", "ULTRA", "CHAOS", "ZEN"];
+// --- JOUEURS ET TOUCHES ---
+const configs = [
+    {id: 1, c: '#ff4757', keys: {u:'z', d:'s', l:'q', r:'d'}},
+    {id: 2, c: '#2ed573', keys: {u:'arrowup', d:'arrowdown', l:'arrowleft', r:'arrowright'}},
+    {id: 3, c: '#1e90ff', keys: {u:'i', d:'k', l:'j', r:'l'}},
+    {id: 4, c: '#ffa502', keys: {u:'8', d:'5', l:'4', r:'6'}},
+    {id: 5, c: '#ff6fcf', keys: {u:'t', d:'g', l:'f', r:'h'}},
+    {id: 6, c: '#70a1ff', keys: {u:'y', d:'h', l:'g', r:'j'}},
+    {id: 7, c: '#747d8c', keys: {u:'p', d:'m', l:'l', r:'ù'}},
+    {id: 8, c: '#eccc68', keys: {u:'o', d:'l', l:'k', r:'m'}}
+];
 
-    AVATARS.forEach(a => {
-        const b = document.createElement('button');
-        b.innerText = a; b.style.padding = "12px"; b.style.fontSize = "22px"; b.style.cursor = "pointer"; b.style.background = "none"; b.style.border = "2px solid transparent";
-        b.onclick = () => { myAvatar = a; document.querySelectorAll('#avatars button').forEach(x => x.style.borderColor = "transparent"); b.style.borderColor = "#6c5ce7"; b.style.borderRadius = "10px"; };
-        document.getElementById('avatars').appendChild(b);
-    });
+let players = configs.map(cfg => ({
+    ...cfg, joined: false, x: 500, y: 300, vx:0, vy:0, alive: true, score: 0,
+    inputs: {u:false, d:false, l:false, r:false, click: false},
+    mx: 0, my: 0 // Position souris pour viser
+}));
 
-    function confirmProfile() {
-        myPseudo = document.getElementById('pseudo').value || "Joueur";
-        document.getElementById('setup').style.display = "none";
-        document.getElementById('wait').style.display = "block";
-        if(isHost) addHostPlayer();
-    }
+// --- GESTION DU LOBBY ---
+function updateLobby() {
+    const grid = document.getElementById('playerGrid');
+    grid.innerHTML = players.map(p => `
+        <div class="p-card ${p.joined ? 'active' : ''}">
+            <div style="width:30px; height:30px; background:${p.c}; border-radius:50%; margin:0 auto 10px;"></div>
+            <b>JOUEUR ${p.id}</b><br>
+            <small>${p.joined ? 'PRÊT !' : 'Appuyez sur ' + p.keys.u.toUpperCase()}</small>
+        </div>
+    `).join('');
+}
+updateLobby();
 
-    function initHost() {
-        isHost = true;
-        const pin = Math.floor(100000 + Math.random() * 899999).toString();
-        document.getElementById('pin-display').innerText = "CODE : " + pin;
-        peer = new Peer('GP-' + pin);
-        peer.on('connection', conn => {
-            connections.push(conn);
-            conn.on('data', data => {
-                if(data.type === 'JOIN') {
-                    if(!players.find(p => p.id === conn.peer)) {
-                        players.push({ id: conn.peer, pseudo: data.pseudo, avatar: data.avatar, score: 0, y: 300, color: `hsl(${Math.random()*360}, 75%, 65%)`, alive: true });
-                        sync(); updateLobbyUI();
+// --- MINI-JEUX MANUELS ---
+const GameLib = [
+    {
+        name: "SHOOTER ARENA",
+        bullets: [],
+        init: () => {
+            players.forEach((p, i) => { p.x = 100 + (i%4)*200; p.y = (i<4?100:500); p.alive = p.joined; });
+            GameLib[0].bullets = [];
+        },
+        update: () => {
+            const g = GameLib[0];
+            players.forEach(p => {
+                if (!p.alive) return;
+                // Move
+                if (p.inputs.u) p.y -= 4; if (p.inputs.d) p.y += 4;
+                if (p.inputs.l) p.x -= 4; if (p.inputs.r) p.x += 4;
+                // Shoot
+                if (p.inputs.click) {
+                    const angle = Math.atan2(p.my - p.y, p.mx - p.x);
+                    g.bullets.push({x:p.x, y:p.y, vx: Math.cos(angle)*8, vy:Math.sin(angle)*8, owner:p.id});
+                    p.inputs.click = false; // Tir par clic
+                }
+            });
+            g.bullets.forEach((b, bi) => {
+                b.x += b.vx; b.y += b.vy;
+                players.forEach(p => {
+                    if (p.alive && p.id !== b.owner && Math.hypot(p.x-b.x, p.y-b.y) < 20) {
+                        p.alive = false; g.bullets.splice(bi, 1);
                     }
-                }
-                if(data.type === 'JUMP') {
-                    let p = players.find(x => x.id === conn.peer);
-                    if(p && p.alive && gameTimer > 0) p.y -= 45;
-                }
-                if(data.type === 'SECRET') {
-                    let p = players.find(x => x.id === conn.peer);
-                    if(p) { p.score += data.pts; sync(); }
-                }
+                });
             });
-        });
-        document.getElementById('start-btn').onclick = () => { broadcast({type:'START'}); startGame(); };
-    }
-
-    function addHostPlayer() {
-        myId = "HOST";
-        players.push({ id: myId, pseudo: myPseudo, avatar: myAvatar, score: 0, y: 300, color: '#00d2ff', alive: true });
-        updateLobbyUI();
-    }
-
-    function joinGame() {
-        const pin = document.getElementById('join-pin').value;
-        peer = new Peer();
-        peer.on('open', id => {
-            myId = id; hostConn = peer.connect('GP-' + pin);
-            hostConn.on('open', () => {
-                hostConn.send({ type: 'JOIN', pseudo: myPseudo, avatar: myAvatar });
-                document.getElementById('lobby-card').innerHTML = "<h2>PRÊT !<br>Regarde l'écran principal</h2>";
+        },
+        draw: () => {
+            GameLib[0].bullets.forEach(b => { ctx.fillStyle="white"; ctx.fillRect(b.x, b.y, 5, 5); });
+        }
+    },
+    {
+        name: "COLLECTE DE PIÈCES",
+        coins: [],
+        init: () => {
+            players.forEach(p => { p.x = Math.random()*800; p.y = Math.random()*500; p.alive = p.joined; });
+            GameLib[1].coins = Array.from({length: 10}, () => ({x: Math.random()*900, y: Math.random()*500}));
+        },
+        update: () => {
+            players.forEach(p => {
+                if (p.inputs.u) p.y -= 5; if (p.inputs.d) p.y += 5;
+                if (p.inputs.l) p.x -= 5; if (p.inputs.r) p.x += 5;
+                GameLib[1].coins.forEach((c, ci) => {
+                    if (Math.hypot(p.x - c.x, p.y - c.y) < 30) {
+                        p.score++; GameLib[1].coins.splice(ci, 1);
+                        GameLib[1].coins.push({x: Math.random()*900, y: Math.random()*500});
+                    }
+                });
             });
-            hostConn.on('data', d => {
-                if(d.type === 'SYNC') { players = d.players; currentGame = d.game; gameTimer = d.timer; currentStep = d.step; }
-                if(d.type === 'START') startGame();
-            });
-        });
-    }
-
-    function sendJump() {
-        if(gameTimer <= 0) return;
-        if(isHost) { let p = players.find(x => x.id === myId); if(p && p.alive) p.y -= 45; }
-        else if(hostConn) hostConn.send({ type: 'JUMP' });
-    }
-
-    function spawnSecret() {
-        if(isHost || gameTimer <= 0 || Math.random() > 0.45) return;
-        const s = [{ i: '🏆', p: 10 }, { i: '💎', p: 5 }, { i: '🍌', p: -5 }][Math.floor(Math.random()*3)];
-        const el = document.createElement('div');
-        el.className = 'secret-item'; el.innerText = s.i;
-        el.style.left = Math.random()*80+10+'%'; el.style.top = Math.random()*80+10+'%';
-        el.onclick = (e) => { e.stopPropagation(); if(window.navigator.vibrate) window.navigator.vibrate(40); hostConn.send({type:'SECRET', pts: s.p}); el.remove(); };
-        document.body.appendChild(el);
-        setTimeout(() => { if(el.parentNode) el.remove(); }, 3500);
-    }
-
-    function startGame() {
-        document.getElementById('lobby').style.display = 'none';
-        document.getElementById('game-area').style.display = 'flex';
-        document.getElementById('mobile-ctrl').style.display = 'block';
-        resize();
-        if(isHost) {
-            document.getElementById('host-ui').style.display = 'block';
-            nextStep();
-            setInterval(() => { if(gameTimer > 0) { gameTimer--; sync(); } }, 1000);
-        } else {
-            setInterval(spawnSecret, 6500);
+        },
+        draw: () => {
+            GameLib[1].coins.forEach(c => { ctx.fillStyle="gold"; ctx.beginPath(); ctx.arc(c.x, c.y, 10, 0, Math.PI*2); ctx.fill(); });
         }
-        window.addEventListener('keydown', e => { 
-            if(isHost && e.key.toLowerCase() === 'n') nextStep();
-            if(e.key === ' ') sendJump(); 
-        });
-        requestAnimationFrame(loop);
     }
+];
 
-    function nextStep() {
-        if(!isHost) return;
-        document.querySelectorAll('.secret-item').forEach(s => s.remove());
-        currentStep++;
-        if(currentStep > 100) { currentGame = {name: "VICTOIRE FINALE !", speed: 0}; sync(); return; }
-        
-        gameTimer = 60;
-        const typeIdx = Math.floor(Math.random() * GAME_TYPES.length);
-        currentGame = { 
-            name: `${GAME_TYPES[typeIdx]} #${currentStep}`, 
-            speed: 1.6 + (currentStep * 0.045) 
-        };
-        players.forEach(p => { p.y = 300; p.alive = true; });
-        sync();
-    }
+let currentGame = null;
+let isStarted = false;
 
-    function loop() {
-        if(isHost && gameTimer > 0) {
-            players.forEach(p => { if(p.alive) { p.y += currentGame.speed; if(p.y > canvas.height) p.alive = false; } });
-            sync();
-        }
-        draw();
-        requestAnimationFrame(loop);
-    }
+function nextGame() {
+    currentGame = GameLib[Math.floor(Math.random() * GameLib.length)];
+    currentGame.init();
+}
 
-    function draw() {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        const timerEl = document.getElementById('timer');
-        timerEl.innerText = gameTimer + "s";
-        
-        // Effet visuel fin de temps
-        if(gameTimer <= 10 && gameTimer > 0) {
-            timerEl.classList.add('low-time');
-            canvas.style.filter = "sepia(0.5) contrast(1.2)";
-        } else {
-            timerEl.classList.remove('low-time');
-            canvas.style.filter = "none";
-        }
+// --- ÉVÉNEMENTS ---
+window.onkeydown = (e) => {
+    const k = e.key.toLowerCase();
+    if (k === 'n' && isStarted) return nextGame(); // TOUCHE N POUR CHANGER
+    
+    players.forEach(p => {
+        if (k === p.keys.u) { p.inputs.u = true; p.joined = true; updateLobby(); }
+        if (k === p.keys.d) p.inputs.d = true;
+        if (k === p.keys.l) p.inputs.l = true;
+        if (k === p.keys.r) p.inputs.r = true;
+    });
+};
+window.onkeyup = (e) => {
+    const k = e.key.toLowerCase();
+    players.forEach(p => {
+        if (k === p.keys.u) p.inputs.u = false;
+        if (k === p.keys.d) p.inputs.d = false;
+        if (k === p.keys.l) p.inputs.l = false;
+        if (k === p.keys.r) p.inputs.r = false;
+    });
+};
+window.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    players.forEach(p => { p.mx = e.clientX - rect.left; p.my = e.clientY - rect.top; });
+};
+window.onmousedown = () => players.forEach(p => p.inputs.click = true);
 
-        document.getElementById('step-counter').innerText = `Étape ${currentStep}/100`;
-        document.getElementById('game-title').innerText = currentGame.name;
-        document.getElementById('score-list').innerHTML = players.map(p => `
-            <div class="player-row" style="border-left:5px solid ${p.color}; opacity: ${p.alive ? 1 : 0.4}">
-                <span style="font-size:20px;">${p.avatar}</span> <span style="flex-grow:1; font-weight:bold;">${p.pseudo}</span> <b>${p.score}</b>
-            </div>
-        `).join('');
+document.getElementById('startBtn').onclick = () => {
+    if (!players.some(p => p.joined)) return;
+    document.getElementById('lobby').style.display = 'none';
+    canvas.style.display = 'block';
+    isStarted = true;
+    nextGame();
+    loop();
+};
 
-        players.forEach((p, i) => {
-            if(p.alive) {
-                // Espacement dynamique des joueurs sur le canvas
-                const posX = 100 + (i * 80);
-                ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(posX, p.y, 25, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = "white"; ctx.font = "22px Arial"; ctx.fillText(p.avatar, posX-15, p.y+8);
-            }
-        });
-    }
-
-    function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
-    function sync() { if(isHost) broadcast({ type:'SYNC', players, game: currentGame, timer: gameTimer, step: currentStep }); }
-    function broadcast(d) { connections.forEach(c => c.send(d)); }
-    function updateLobbyUI() {
-        document.getElementById('player-list').innerHTML = players.map(p => `<div style="padding:15px; background:#f1f2f6; border-radius:15px; text-align:center; min-width:80px; box-shadow:0 4px 0 #ddd;">${p.avatar}<br><b>${p.pseudo}</b></div>`).join('');
-        if(isHost && players.length >= 1) document.getElementById('start-btn').style.display = "block";
-    }
-
-    if(!window.location.hash.includes('join')) initHost();
-    window.onresize = resize;
+function loop() {
+    ctx.fillStyle = "#111"; ctx.fillRect(0, 0, 1000, 600);
+    currentGame.update();
+    currentGame.draw();
+    
+    players.forEach(p => {
+        if (!p.joined || !p.alive) return;
+        ctx.fillStyle = p.c;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 20, 0, Math.PI*2); ctx.fill();
+        // Ligne de visée (souris)
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.mx, p.my); ctx.stroke();
+    });
+    requestAnimationFrame(loop);
+}
 </script>
 </body>
 </html>
