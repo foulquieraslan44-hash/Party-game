@@ -3,71 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gartic Party - Mobile & Settings</title>
+    <title>Gartic Party - Stable Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --panel: #2d3436; --accent: #fdcb6e; --bg: #6c5ce7; }
         body { background: var(--bg); color: white; font-family: 'Comic Sans MS', cursive; margin: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; touch-action: manipulation; }
-        
-        /* LOBBY */
-        #lobby { background: white; color: #2d3436; padding: 20px; border-radius: 25px; width: 90%; max-width: 600px; text-align: center; box-shadow: 0 10px 0 rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
+        #lobby { background: white; color: #2d3436; padding: 20px; border-radius: 25px; width: 90%; max-width: 500px; text-align: center; box-shadow: 0 10px 0 rgba(0,0,0,0.2); }
         .avatar-picker { display: flex; justify-content: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
         .av-btn { font-size: 25px; cursor: pointer; padding: 8px; border: 2px solid #dfe6e9; border-radius: 10px; background: none; }
         .av-btn.selected { border-color: var(--bg); background: #efecff; }
-        
-        /* JEU */
         #game-area { display: none; width: 100vw; height: 100vh; position: relative; background: #1a1a2e; }
-        canvas { background: #242442; border-left: 5px solid #3d3d5e; cursor: pointer; }
-        #sidebar { width: 180px; background: #2d3436; height: 100%; padding: 10px; box-sizing: border-box; font-size: 14px; }
-        
-        /* BOUTONS */
-        .btn { background: #ff7675; border: none; padding: 12px 20px; color: white; border-radius: 50px; font-size: 16px; cursor: pointer; font-weight: bold; border-bottom: 5px solid #d63031; margin: 5px; }
-        .secret-item { position: fixed; font-size: 45px; z-index: 2000; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
-        
-        /* CONTROLES MOBILE */
-        #mobile-controller { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1500; background: rgba(0,0,0,0.1); }
-        #key-display { font-size: 12px; color: #636e72; margin-top: 5px; }
+        canvas { background: #242442; border-left: 5px solid #3d3d5e; }
+        #sidebar { width: 180px; background: #2d3436; height: 100%; padding: 10px; box-sizing: border-box; }
+        .player-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; padding: 5px; border-radius: 8px; background: rgba(255,255,255,0.05); font-size: 13px; }
+        .btn { background: #ff7675; border: none; padding: 12px 20px; color: white; border-radius: 50px; font-size: 16px; cursor: pointer; font-weight: bold; border-bottom: 5px solid #d63031; }
+        .secret-item { position: fixed; font-size: 50px; z-index: 2000; cursor: pointer; user-select: none; }
+        #mobile-controller { display: none; position: fixed; inset: 0; z-index: 1500; }
     </style>
 </head>
 <body>
 
-    <div id="player-ui-message" style="position:fixed; top:20px; z-index:3000; pointer-events:none; font-size:24px; font-weight:bold;"></div>
-
     <div id="mobile-controller" onclick="sendJump()"></div>
 
     <div id="lobby">
-        <h1 id="main-title" style="font-size: 24px;">GARTIC PARTY <span id="pin-display">...</span></h1>
-        
+        <h1 style="font-size: 22px; color: var(--bg);">GARTIC PARTY <span id="pin-display">...</span></h1>
         <div id="setup-player">
-            <input type="text" id="pseudo-input" placeholder="Pseudo..." maxlength="10" style="padding:10px; border-radius:8px; width:80%;">
+            <input type="text" id="pseudo-input" placeholder="Pseudo..." maxlength="10" style="padding:10px; width:70%; margin-bottom:10px;">
             <div class="avatar-picker" id="picker"></div>
-            
-            <div style="background: #f1f2f6; padding: 10px; border-radius: 10px; margin: 10px 0;">
-                <label>Touche clavier : </label>
-                <input type="text" id="key-input" value=" " maxlength="1" style="width:30px; text-align:center;" onclick="this.value=''">
-                <p id="key-display">(Espace par défaut. Sur tel: clique n'importe où)</p>
-            </div>
-            
-            <button class="btn" id="ready-btn" onclick="confirmProfile()">VALIDER PROFIL</button>
+            <div style="font-size:12px; margin-bottom:10px;">Touche : <input type="text" id="key-input" value=" " style="width:30px; text-align:center;"> (Espace)</div>
+            <button class="btn" onclick="confirmProfile()">VALIDER</button>
         </div>
-
-        <div id="host-only" style="display:none;">
-            <div id="join-section">
-                <input type="text" id="input-pin" placeholder="CODE PIN" style="padding:10px; width:100px;">
-                <button class="btn" style="background:#00d2ff; border-color:#0097e6;" onclick="joinGame()">REJOINDRE</button>
-            </div>
-            <div id="player-grid" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:15px;"></div>
-            <button id="start-btn" class="btn" style="background:#55efc4; border-color:#00b894; display:none;">LANCER LA PARTIE</button>
+        <div id="host-only" style="display:none; margin-top:15px;">
+            <input type="text" id="input-pin" placeholder="CODE PIN" style="padding:10px; width:80px;">
+            <button class="btn" style="background:#00d2ff; padding:10px;" onclick="joinGame()">REJOINDRE</button>
+            <div id="player-grid" style="display:flex; flex-wrap:wrap; gap:5px; justify-content:center; margin:15px 0;"></div>
+            <button id="start-btn" class="btn" style="background:#55efc4; display:none;">LANCER</button>
         </div>
     </div>
 
     <div id="game-area">
         <div style="display:flex; height:100%;">
             <div id="sidebar">
-                <h3 id="step-counter" style="color:var(--accent); margin:5px 0;">Étape 1/50</h3>
+                <h3 id="step-counter" style="color:var(--accent); font-size:16px;">Étape 0/50</h3>
                 <div id="score-list"></div>
                 <div id="host-tools" style="margin-top:20px; display:none;">
-                    <button class="btn" style="font-size:12px; width:100%;" onclick="nextStep()">JEU SUIVANT (N)</button>
+                    <button class="btn" style="font-size:11px; width:100%;" onclick="nextStep()">JEU SUIVANT (N)</button>
                 </div>
             </div>
             <div style="flex-grow:1; position:relative;">
@@ -85,8 +65,8 @@
     let peer = null, connections = [], hostConn = null, isHost = false;
     let players = [], currentStep = 0, currentMiniGame = null, myId = null;
     let selectedAvatar = AVATARS[0], myPseudo = "", myKey = " ";
+    let gameActive = false;
 
-    // Picker d'avatars
     const picker = document.getElementById('picker');
     AVATARS.forEach(av => {
         const b = document.createElement('button');
@@ -109,12 +89,15 @@
         document.getElementById('pin-display').innerText = "CODE: " + pin;
         peer = new Peer('GP-' + pin);
         peer.on('connection', conn => {
+            connections.push(conn);
             conn.on('data', data => {
                 if(data.type === 'JOIN') {
-                    players.push({ id: conn.peer, pseudo: data.pseudo, avatar: data.avatar, score: 0, x: 400, y: 300, color: `hsl(${Math.random()*360}, 70%, 60%)`, active: true, alive: true });
-                    sync(); updateLobbyUI();
+                    if(!players.find(p => p.id === conn.peer)) {
+                        players.push({ id: conn.peer, pseudo: data.pseudo, avatar: data.avatar, score: 0, x: 400, y: 300, color: `hsl(${Math.random()*360}, 70%, 60%)`, active: true, alive: true });
+                        updateLobbyUI(); sync();
+                    }
                 }
-                if(data.type === 'INPUT') {
+                if(data.type === 'INPUT' && gameActive) {
                     let p = players.find(pl => pl.id === conn.peer);
                     if(p && p.alive) p.y -= 35;
                 }
@@ -140,7 +123,7 @@
             myId = id; hostConn = peer.connect('GP-' + pin);
             hostConn.on('open', () => {
                 hostConn.send({ type: 'JOIN', pseudo: myPseudo, avatar: selectedAvatar });
-                document.getElementById('lobby').innerHTML = "<h1>TU ES CONNECTÉ !</h1><p>Regarde l'écran principal</p>";
+                document.getElementById('lobby').innerHTML = "<h1>CONNECTÉ !</h1><p>Prépare-toi...</p>";
             });
             hostConn.on('data', d => {
                 if(d.type === 'SYNC') { players = d.players; currentMiniGame = d.game; currentStep = d.step; }
@@ -150,6 +133,7 @@
     }
 
     function sendJump() {
+        if(!gameActive) return;
         if(isHost) {
             let p = players.find(pl => pl.id === myId);
             if(p && p.alive) p.y -= 35;
@@ -159,14 +143,15 @@
     }
 
     function spawnSecret() {
-        if(isHost || Math.random() > 0.4) return;
+        if(isHost || !gameActive || Math.random() > 0.3) return;
         const secrets = [{ i: '🏆', p: 10 }, { i: '💎', p: 5 }, { i: '🍌', p: -5 }];
         const s = secrets[Math.floor(Math.random() * secrets.length)];
         const el = document.createElement('div');
         el.className = 'secret-item'; el.innerText = s.i;
-        el.style.left = Math.random()*80 + 10 + '%'; el.style.top = Math.random()*80 + 10 + '%';
+        el.style.left = Math.random()*70 + 15 + '%'; el.style.top = Math.random()*70 + 15 + '%';
         el.onclick = (e) => {
-            e.stopPropagation(); // Évite de faire sauter le joueur en cliquant sur le secret
+            e.stopPropagation();
+            if(window.navigator.vibrate) window.navigator.vibrate(50); // Vibration mobile
             hostConn.send({ type: 'SECRET', points: s.p });
             el.remove();
         };
@@ -175,12 +160,13 @@
     }
 
     function startGame() {
+        gameActive = true;
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-area').style.display = 'block';
         document.getElementById('mobile-controller').style.display = 'block';
         resize();
         if(isHost) { document.getElementById('host-tools').style.display = 'block'; nextStep(); }
-        else { setInterval(spawnSecret, 7000); }
+        else { setInterval(spawnSecret, 8000); }
         
         window.addEventListener('keydown', e => {
             if(isHost && e.key.toLowerCase() === 'n') nextStep();
@@ -190,16 +176,25 @@
     }
 
     function nextStep() {
+        if(!isHost) return;
         currentStep++;
-        if(currentStep > 50) return;
-        currentMiniGame = { name: "DÉFI #" + Math.floor(Math.random()*100), speed: 1.5 + (currentStep * 0.08) };
+        if(currentStep > 50) {
+            currentMiniGame = { name: "FIN DE PARTIE", speed: 0 };
+            sync(); return;
+        }
+        const gameA = "DÉFI #" + (currentStep * 2 - 1);
+        const gameB = "DÉFI #" + (currentStep * 2);
+        currentMiniGame = { name: Math.random() > 0.5 ? gameA : gameB, speed: 1.5 + (currentStep * 0.07) };
         players.forEach(p => { p.y = 300; p.alive = true; });
         sync();
     }
 
     function loop() {
-        if(isHost && currentStep <= 50) {
-            players.forEach(p => { if(p.active && p.alive) { p.y += currentMiniGame.speed; if(p.y > canvas.height) p.alive = false; } });
+        if(isHost && gameActive && currentStep <= 50) {
+            players.forEach(p => { if(p.active && p.alive) { 
+                p.y += currentMiniGame.speed; 
+                if(p.y > canvas.height) { p.alive = false; }
+            }});
             sync();
         }
         draw();
@@ -229,7 +224,7 @@
     function sync() { if(isHost) broadcast({ type:'SYNC', players, game: currentMiniGame, step: currentStep }); }
     function broadcast(d) { connections.forEach(c => c.send(d)); }
     function updateLobbyUI() {
-        document.getElementById('player-grid').innerHTML = players.map(p => `<div style="background:#efecff; padding:8px; border-radius:10px; font-size:12px;">${p.avatar}<br>${p.pseudo}</div>`).join('');
+        document.getElementById('player-grid').innerHTML = players.map(p => `<div style="background:#efecff; padding:8px; border-radius:10px; font-size:11px;">${p.avatar}<br>${p.pseudo}</div>`).join('');
         if(isHost && players.length >= 1) document.getElementById('start-btn').style.display = "inline-block";
     }
 
