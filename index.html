@@ -2,205 +2,297 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Mega Party 10 - Lobby & Jeux</title>
+    <title>Multi-Screen Party Game</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --bg: #0f0c29; --accent: #00d2ff; }
-        body { background: var(--bg); color: white; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
-        #lobby { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e); }
-        .pin-container { background: white; color: #1a1a2e; padding: 20px 50px; border-radius: 15px; font-size: 40px; font-weight: bold; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; width: 90%; max-width: 1000px; }
-        .player-card { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; border: 3px solid transparent; transition: 0.3s; }
-        .player-card.active { border-color: var(--accent); background: rgba(0, 210, 255, 0.2); transform: scale(1.05); }
-        .key-badge { background: #ff9f43; color: black; padding: 2px 8px; border-radius: 5px; font-weight: bold; font-size: 14px; margin-top: 5px; display: inline-block; }
-        
-        #game-ui { position: absolute; top: 0; width: 100%; text-align: center; pointer-events: none; display: none; }
-        canvas { display: block; background: #16213e; margin: auto; box-shadow: 0 0 50px rgba(0,0,0,0.5); cursor: crosshair; }
-        .hidden { display: none; }
+        body { background: #0f0c29; color: white; font-family: sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+        #lobby { text-align: center; margin-top: 50px; }
+        .pin { background: white; color: #1a1a2e; padding: 15px 30px; border-radius: 10px; font-size: 35px; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 20px; }
+        .p-card { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; border: 2px solid transparent; }
+        .p-card.active { border-color: #00d2ff; background: rgba(0,210,255,0.2); }
+        canvas { background: #16213e; border: 3px solid #333; display: none; }
+        #ui { position: fixed; top: 10px; width: 100%; text-align: center; pointer-events: none; }
+        .btn { padding: 10px 20px; background: #00d2ff; border: none; color: white; cursor: pointer; border-radius: 5px; font-size: 18px; margin-top: 10px; }
+        #fullscreen-btn { position: fixed; bottom: 10px; right: 10px; z-index: 1000; }
+
+        /* Styles pour le mode buggé */
+        body.bugged { filter: hue-rotate(90deg) saturate(200%); }
+        canvas.bugged { transform: scale(1.02) rotateZ(0.5deg); opacity: 0.9; }
     </style>
 </head>
 <body>
 
     <div id="lobby">
-        <div class="pin-container">CODE : 127 904</div>
-        <h1 id="lobby-msg">Appuie sur une touche pour rejoindre !</h1>
-        <div class="grid" id="player-grid"></div>
-        <p style="margin-top: 20px; color: #aaa;">Minimum 2 joueurs pour commencer (ESPACE)</p>
+        <div id="host-setup">
+            <h1>SALON MULTI-ÉCRANS</h1>
+            <div class="pin">CODE : <span id="display-pin">...</span></div>
+            <div class="grid" id="player-grid"></div>
+            <button id="start-btn" class="btn" style="display:none;">LANCER SUR TOUS LES ÉCRANS</button>
+        </div>
+
+        <div id="join-setup" style="margin-top:20px;">
+            <input type="text" id="input-pin" placeholder="Entrer Code PIN">
+            <button class="btn" onclick="joinGame()">REJOINDRE</button>
+        </div>
     </div>
 
-    <div id="game-ui">
-        <h1 id="game-title" style="font-size: 40px; text-shadow: 2px 2px #000;">TITRE DU JEU</h1>
-        <div id="game-scores" style="display: flex; justify-content: center; gap: 15px;"></div>
-    </div>
-    <canvas id="gameCanvas" class="hidden"></canvas>
+    <div id="ui"><h2 id="game-msg"></h2></div>
+    <canvas id="gameCanvas" width="900" height="600"></canvas>
+    
+    <button id="fullscreen-btn" class="btn" onclick="toggleFullscreen()">Plein Écran</button>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = 1000;
-    canvas.height = 700;
-
-    const COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#A8E6CF', '#FF8C42', '#764BA2', '#00D2FF', '#FC6767', '#54a0ff', '#5f27cd'];
+    let peer = null;
+    let connections = []; // Pour l'hôte
+    let hostConn = null; // Pour les joueurs
+    let isHost = false;
     let players = [];
-    let currentState = "LOBBY";
-    let activeGame = null;
-    let mouseX = 0, mouseY = 0, mouseIsDown = false;
+    const COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#A8E6CF', '#FF8C42', '#764BA2', '#00D2FF', '#FC6767', '#54a0ff', '#5f27cd'];
 
-    // Initialisation des 10 joueurs
+    let gameDuration = 5000; // Durée normale d'un mini-jeu
+    let gameTimer = 0;
+    let currentMiniGame = null;
+    let isBuggedMode = false;
+
+    // --- INITIALISATION DES JOUEURS ---
     const grid = document.getElementById('player-grid');
     for(let i=0; i<10; i++) {
-        players.push({
-            id: i, active: false, color: COLORS[i], score: 0, 
-            key: null, x: 0, y: 0, alive: true, score_round: 0
+        players.push({ id: i, active: false, color: COLORS[i], x: 450, y: 300, score: 0, key: null, peerId: null, alive: true });
+        grid.innerHTML += `<div class="p-card" id="card-${i}">Joueur ${i+1}<br><span id="key-${i}">Libre</span></div>`;
+    }
+
+    // --- LOGIQUE HÔTE ---
+    function initHost() {
+        isHost = true;
+        const pin = Math.floor(1000 + Math.random() * 9000).toString();
+        document.getElementById('display-pin').innerText = pin;
+        peer = new Peer('ROOM-' + pin);
+
+        peer.on('connection', conn => {
+            connections.push(conn);
+            conn.on('data', data => {
+                if(data.type === 'JOIN') {
+                    let p = players.find(pl => !pl.active);
+                    if(p) {
+                        p.active = true; p.peerId = conn.peer; p.key = data.key;
+                        updateLobbyUI();
+                        broadcast({ type: 'LOBBY_UPDATE', players: players });
+                        conn.send({ type: 'ASSIGN_PLAYER_ID', playerId: p.id }); // Envoyer l'ID du joueur
+                    }
+                }
+                if(data.type === 'INPUT') {
+                    let p = players.find(pl => pl.peerId === conn.peer);
+                    if(p) {
+                        // Mouvement basique pour l'exemple
+                        if(data.key === p.key) p.y -= 5;
+                    }
+                }
+            });
+            conn.on('close', () => { // Gérer les déconnexions
+                let idx = players.findIndex(p => p.peerId === conn.peer);
+                if(idx !== -1) {
+                    players[idx].active = false; players[idx].peerId = null; players[idx].key = null;
+                    updateLobbyUI();
+                    broadcast({ type: 'LOBBY_UPDATE', players: players });
+                }
+            });
         });
-        grid.innerHTML += `
-            <div class="player-card" id="card-${i}">
-                <div style="font-size:30px">👤</div>
-                <div>Joueur ${i+1}</div>
-                <div id="key-${i}" class="key-badge">En attente...</div>
-            </div>
-        `;
+        document.getElementById('start-btn').onclick = () => {
+            broadcast({ type: 'START' });
+            startGame();
+        };
     }
 
-    // --- GESTION DES ENTRÉES ---
-    window.addEventListener('keydown', e => {
-        if(currentState === "LOBBY") {
-            if(e.code === 'Space') {
-                if(players.filter(p => p.active).length >= 2) startGame();
-                return;
-            }
-            // Assigner une touche à un joueur
-            if(!players.find(p => p.key === e.key)) {
-                let p = players.find(p => !p.active);
-                if(p) {
-                    p.active = true; p.key = e.key;
-                    document.getElementById(`card-${p.id}`).classList.add('active');
-                    document.getElementById(`key-${p.id}`).innerText = e.key.toUpperCase();
-                }
-            }
-        } else if(currentState === "PLAYING" && activeGame.onKey) {
-            activeGame.onKey(e.key);
-        }
-    });
+    // --- LOGIQUE JOUEUR ---
+    let myPlayerId = -1; // ID de ce joueur spécifique
+    let myKey = null;
 
-    canvas.addEventListener('mousemove', e => {
-        const rect = canvas.getBoundingClientRect();
-        mouseX = e.clientX - rect.left;
-        mouseY = e.clientY - rect.top;
-    });
-    canvas.addEventListener('mousedown', () => mouseIsDown = true);
-    canvas.addEventListener('mouseup', () => mouseIsDown = false);
-
-    // --- LES 10 MINI-JEUX ---
-
-    class GameBase {
-        constructor(name, duration) { this.name = name; this.duration = duration; this.timeLeft = duration; }
-        updateBase(dt) { this.timeLeft -= dt; return this.timeLeft <= 0; }
-    }
-
-    // 1. Sniper Souris (Souris)
-    class Sniper extends GameBase {
-        constructor() { super("SNIPER : SURVIVEZ AU CLIC !", 7000); }
-        init() { players.forEach(p => { p.x = Math.random()*900+50; p.y = Math.random()*600+50; p.alive = true; }); }
-        update(dt) {
-            if(mouseIsDown) {
-                players.forEach(p => { if(p.active && Math.hypot(p.x-mouseX, p.y-mouseY) < 30) p.alive = false; });
-            }
-            return this.updateBase(dt);
-        }
-        draw() {
-            players.filter(p => p.active && p.alive).forEach(p => {
-                ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, 20, 0, 7); ctx.fill();
-            });
-            ctx.strokeStyle = "red"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mouseX, mouseY, 30, 0, 7); ctx.stroke();
-        }
-    }
-
-    // 2. Click Race (Clavier)
-    class ClickRace extends GameBase {
-        constructor() { super("CLAVIER : MITRAILLEZ VOTRE TOUCHE !", 5000); }
-        init() { players.forEach(p => { p.score_round = 0; p.x = 100 + p.id*80; p.y = 600; }); }
-        onKey(k) { let p = players.find(pl => pl.key === k); if(p) { p.score_round++; p.y -= 10; } }
-        update(dt) { return this.updateBase(dt); }
-        draw() { players.filter(p => p.active).forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 50, 50); }); }
-    }
-
-    // 3. Esquive (Clavier)
-    class Dodge extends GameBase {
-        constructor() { super("ESQUIVE : NE TOUCHE PAS LE CENTRE", 8000); }
-        init() { players.forEach(p => { p.x = Math.random()*900; p.y = Math.random()*600; p.alive = true; }); }
-        update(dt) {
-            players.forEach(p => { if(p.active && Math.hypot(p.x-500, p.y-350) < 100) p.alive = false; });
-            return this.updateBase(dt);
-        }
-        draw() {
-            ctx.fillStyle = "red"; ctx.beginPath(); ctx.arc(500, 350, 100, 0, 7); ctx.fill();
-            players.filter(p => p.active && p.alive).forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 20, 20); });
-        }
-    }
-
-    // 4. Collecte (Souris)
-    class Collect extends GameBase {
-        constructor() { super("SOURIS : PASSEZ SUR VOTRE COULEUR", 8000); this.targets = []; }
-        init() { for(let i=0; i<20; i++) this.targets.push({x:Math.random()*900, y:Math.random()*600, c:COLORS[Math.floor(Math.random()*10)]}); }
-        update(dt) {
-            this.targets = this.targets.filter(t => {
-                if(Math.hypot(t.x-mouseX, t.y-mouseY) < 30) {
-                    let p = players.find(pl => pl.color === t.c);
-                    if(p) p.score_round++; return false;
-                }
-                return true;
-            });
-            return this.updateBase(dt);
-        }
-        draw() { this.targets.forEach(t => { ctx.fillStyle = t.c; ctx.beginPath(); ctx.arc(t.x, t.y, 15, 0, 7); ctx.fill(); }); }
-    }
-
-    // Ajoutez ici les 6 autres jeux sur le même modèle... (Simplifié pour la place)
-    class Simon extends GameBase { constructor() { super("MEMOIRE : NE BOUGEZ PAS", 5000); } update(dt) { return this.updateBase(dt); } draw() { ctx.fillStyle="white"; ctx.fillText("RESTEZ IMMOBILE", 500, 350); players.filter(p=>p.active).forEach(p=> {ctx.fillStyle=p.color; ctx.arc(500,350,20,0,7); ctx.fill();}); } }
-
-    // --- MOTEUR DE JEU ---
-
-    function startGame() {
-        document.getElementById('lobby').classList.add('hidden');
-        document.getElementById('gameCanvas').classList.remove('hidden');
-        document.getElementById('game-ui').style.display = 'block';
-        currentState = "PLAYING";
-        nextRound();
-    }
-
-    function nextRound() {
-        const games = [Sniper, ClickRace, Dodge, Collect, Simon];
-        activeGame = new games[Math.floor(Math.random()*games.length)]();
-        activeGame.init ? activeGame.init() : null;
-        document.getElementById('game-title').innerText = activeGame.name;
-        updateScoreBoard();
-    }
-
-    function updateScoreBoard() {
-        const div = document.getElementById('game-scores');
-        div.innerHTML = players.filter(p => p.active).map(p => `<span style="color:${p.color}">P${p.id+1}: ${p.score}</span>`).join(' | ');
-    }
-
-    let lastTime = 0;
-    function loop(t) {
-        let dt = t - lastTime; lastTime = t;
-        ctx.clearRect(0,0,1000,700);
-        if(currentState === "PLAYING") {
-            if(activeGame.update(dt)) {
-                players.forEach(p => { if(p.active && p.alive) p.score++; });
-                nextRound();
-            }
-            activeGame.draw();
-            if(activeGame.name.includes("CLAVIER") || activeGame.name.includes("ESQUIVE")) {
-                players.filter(p => p.active).forEach(p => {
-                    // Mouvement basique pour les jeux clavier
-                    ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, 7); ctx.fill();
+    function joinGame() {
+        const pin = document.getElementById('input-pin').value;
+        if(!pin) return alert("Veuillez entrer un code PIN.");
+        
+        peer = new Peer();
+        peer.on('open', () => {
+            hostConn = peer.connect('ROOM-' + pin);
+            hostConn.on('open', () => {
+                document.getElementById('lobby').innerHTML = "<h1>APPUYE SUR TA TOUCHE DE JEU POUR T'ENREGISTRER...</h1>";
+                window.addEventListener('keydown', function keyHandler(e) {
+                    myKey = e.key;
+                    hostConn.send({ type: 'JOIN', key: e.key });
+                    window.removeEventListener('keydown', keyHandler);
+                    document.getElementById('lobby').innerHTML = "<h1>PRÊT ! ATTENDS LE DÉBUT DE LA PARTIE...</h1>";
                 });
-            }
-        }
-        requestAnimationFrame(loop);
+            });
+            hostConn.on('data', data => {
+                if(data.type === 'LOBBY_UPDATE') {
+                    players = data.players;
+                    // Mettre à jour la UI du lobby joueur si besoin
+                }
+                if(data.type === 'ASSIGN_PLAYER_ID') myPlayerId = data.playerId;
+                if(data.type === 'START') startGame();
+                if(data.type === 'SYNC') {
+                    players = data.players; // Mise à jour des positions et états
+                    gameTimer = data.gameTimer;
+                    currentMiniGame = data.currentMiniGame;
+                    isBuggedMode = data.isBuggedMode;
+                    updateGameUI(); // Mettre à jour l'UI du jeu
+                }
+            });
+            hostConn.on('close', () => { alert("Connexion à l'hôte perdue."); document.location.reload(); });
+            hostConn.on('error', err => { console.error("PeerJS error:", err); alert("Erreur de connexion : " + err); });
+        });
     }
-    requestAnimationFrame(loop);
+
+    // --- Fonctions utilitaires réseau ---
+    function broadcast(data) {
+        connections.forEach(c => c.send(data));
+    }
+
+    // --- UI Update Functions ---
+    function updateLobbyUI() {
+        players.forEach((p, i) => {
+            let card = document.getElementById(`card-${i}`);
+            let keyDisplay = document.getElementById(`key-${i}`);
+            if(p.active) {
+                card.classList.add('active');
+                keyDisplay.innerText = "TOUCHE: " + p.key.toUpperCase();
+            } else {
+                card.classList.remove('active');
+                keyDisplay.innerText = "Libre";
+            }
+        });
+        if(players.filter(p=>p.active).length >= 2 && isHost) document.getElementById('start-btn').style.display = "block";
+        else if (isHost) document.getElementById('start-btn').style.display = "none";
+    }
+
+    function updateGameUI() {
+        document.getElementById('game-msg').innerText = `${currentMiniGame ? currentMiniGame.name : ''} - ${Math.ceil(gameDuration/1000 - gameTimer/1000)}s`;
+        if (isBuggedMode) {
+            document.body.classList.add('bugged');
+            canvas.classList.add('bugged');
+        } else {
+            document.body.classList.remove('bugged');
+            canvas.classList.remove('bugged');
+        }
+    }
+
+    // --- GAME LOGIC (Host only) ---
+    function startGame() {
+        document.getElementById('lobby').style.display = 'none';
+        canvas.style.display = 'block';
+        document.getElementById('ui').style.display = 'block';
+        nextGame();
+        gameLoop(); // Lancer la boucle de jeu de l'hôte
+    }
+
+    function nextGame() {
+        // Déclenchement aléatoire du mode buggé (15% de chance)
+        isBuggedMode = Math.random() < 0.15;
+        if (isBuggedMode) {
+            document.getElementById('game-msg').innerText = "MODE BUGGÉ ACTIVÉ !";
+            gameDuration = 3000; // Jeu plus court
+        } else {
+            gameDuration = 5000; // Durée normale
+        }
+
+        const games = [
+            { name: "CLIC RAPIDE !", type: "click", buggedSpeed: 2 },
+            { name: "ESQUIVE !", type: "dodge", buggedObstacles: 3 },
+            { name: "SURVIE !", type: "survival", buggedShrink: 2 },
+            // Ajoute ici tes autres jeux avec leurs paramètres de bugginess
+        ];
+        currentMiniGame = games[Math.floor(Math.random() * games.length)];
+        
+        gameTimer = 0; // Reset timer for new game
+        players.forEach(p => { p.x = Math.random()*800; p.y = Math.random()*500; p.alive = true; }); // Reset player state
+    }
+
+    // --- GAME LOOP ---
+    let lastTime = 0;
+    function gameLoop(time) {
+        if (!isHost) { // Les joueurs ne font que dessiner
+            drawGame();
+            requestAnimationFrame(gameLoop);
+            return;
+        }
+
+        // Logique de l'hôte
+        const deltaTime = time - lastTime;
+        lastTime = time;
+
+        gameTimer += deltaTime;
+
+        // --- Hôte: mise à jour du jeu ---
+        // Exemple basique de mouvement (peut être amélioré pour chaque jeu)
+        players.filter(p => p.active && p.alive).forEach(p => {
+             // Mouvement simplifié pour l'exemple
+             p.y += 0.5 * (isBuggedMode ? currentMiniGame.buggedSpeed || 1 : 1); // Gravité ou mouvement constant
+             if(p.y > 600) p.alive = false; // Chute
+        });
+        
+        if (gameTimer >= gameDuration) { // Fin du mini-jeu
+            players.forEach(p => { if(p.alive) p.score++; }); // Les survivants marquent
+            nextGame(); // Prochain mini-jeu
+        }
+
+        // Envoyer l'état du jeu à tous les joueurs
+        broadcast({ 
+            type: 'SYNC', 
+            players: players, 
+            gameTimer: gameTimer, 
+            currentMiniGame: currentMiniGame,
+            isBuggedMode: isBuggedMode
+        });
+        drawGame();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function drawGame() {
+        ctx.clearRect(0,0,900,600);
+        players.filter(p => p.active && p.alive).forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, 20, 0, 7); ctx.fill();
+            ctx.fillStyle = "white"; ctx.fillText(p.key ? p.key.toUpperCase() : '', p.x-5, p.y-25);
+        });
+        // Dessiner les éléments du jeu (ex: obstacles, cibles, etc.)
+        // Si isBuggedMode est actif, ajuster le dessin ici
+        if(isBuggedMode) {
+            ctx.fillStyle = `rgba(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255}, 0.2)`;
+            ctx.fillRect(0,0,900,600); // Effet visuel buggé
+        }
+    }
+
+    // --- PLEIN ÉCRAN ---
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                alert(`Erreur de plein écran: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    // --- DÉMARRAGE : Détecter si on est hôte ou joueur ---
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('host')) { // Si l'URL est ?host=true
+        initHost();
+        document.getElementById('join-setup').style.display = 'none';
+    } else { // Par défaut, tout le monde peut rejoindre
+        document.getElementById('host-setup').style.display = 'none';
+        document.getElementById('input-pin').focus();
+    }
+    // Pour que l'hôte puisse toujours voir son ID et rejoindre
+    if (!urlParams.get('host') && window.location.hash !== '#join') {
+        document.getElementById('join-setup').style.display = 'none';
+        initHost(); // L'hôte est celui qui ouvre la page sans paramètre spécifique
+    } else {
+        document.getElementById('host-setup').style.display = 'none';
+        document.getElementById('join-setup').style.display = 'block';
+    }
 
 </script>
 </body>
